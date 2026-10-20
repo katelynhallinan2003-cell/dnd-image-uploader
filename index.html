@@ -9,171 +9,252 @@
 @media(prefers-color-scheme:light){:root{--bg:#eef1f6;--panel:#fff;--fg:#1a2130;--mut:#5d6779;--acc:#1f7f73;--accfg:#fff;--bd:#cfd6e2}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 Georgia,"Times New Roman",serif}
-main{max-width:760px;margin:0 auto;padding:28px 16px 60px}
+main{max-width:820px;margin:0 auto;padding:28px 16px 60px}
 h1{font-size:1.6rem;margin:0 0 4px}
+a{color:var(--acc)}
 .mut{color:var(--mut);font-size:.9rem;margin:4px 0}
-.panel{background:var(--panel);border:1px solid var(--bd);border-radius:8px;padding:14px 16px;margin:16px 0}
-input[type=text],input[type=password]{width:100%;padding:8px 10px;border:1px solid var(--bd);border-radius:6px;background:var(--bg);color:var(--fg);font:inherit}
-button{padding:8px 14px;border:1px solid var(--bd);border-radius:6px;background:var(--panel);color:var(--fg);font:inherit;cursor:pointer}
+.panel{background:var(--panel);border:1px solid var(--bd);border-radius:8px;padding:12px 14px;margin:12px 0}
+input[type=text],input[type=password],select{padding:7px 9px;border:1px solid var(--bd);border-radius:6px;background:var(--bg);color:var(--fg);font:inherit;min-width:0}
+button{padding:7px 12px;border:1px solid var(--bd);border-radius:6px;background:var(--panel);color:var(--fg);font:inherit;cursor:pointer}
 button.go{background:var(--acc);color:var(--accfg);border-color:var(--acc);font-weight:bold}
 button:disabled{opacity:.5;cursor:default}
 :focus-visible{outline:2px solid var(--acc);outline-offset:2px}
-.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:8px 0}
-.row>input[type=text]{flex:1;min-width:160px}
-#drop{border:2px dashed var(--bd);border-radius:8px;padding:34px 16px;text-align:center;color:var(--mut);cursor:pointer}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0}
+.row>.grow{flex:1;min-width:140px}
+summary{cursor:pointer}
+#drop{border:2px dashed var(--bd);border-radius:8px;padding:30px 16px;text-align:center;color:var(--mut);cursor:pointer}
 #drop.over{border-color:var(--acc);color:var(--fg)}
-#stage{position:relative;display:inline-block;max-width:100%;overflow:hidden;line-height:0;border-radius:4px;user-select:none;touch-action:none}
-#pic{display:block;max-width:100%;max-height:70vh}
-#box{position:absolute;border:2px solid var(--acc);box-shadow:0 0 0 9999px rgba(0,0,0,.6);cursor:move;touch-action:none}
-#h{position:absolute;right:-2px;bottom:-2px;width:22px;height:22px;background:var(--acc);cursor:nwse-resize;border-radius:4px 0 0 0}
-#msg{min-height:1.4em}
+.stage{position:relative;display:inline-block;max-width:100%;overflow:hidden;line-height:0;border-radius:4px;user-select:none}
+.stage img{display:block;max-width:100%;max-height:60vh}
+.box{position:absolute;border:2px solid var(--acc);box-shadow:0 0 0 9999px rgba(0,0,0,.6);cursor:move;touch-action:none}
+.h{position:absolute;right:-2px;bottom:-2px;width:22px;height:22px;background:var(--acc);cursor:nwse-resize;border-radius:4px 0 0 0}
 .err{color:#e5736b}
-textarea{width:100%;height:56px;padding:8px;border:1px solid var(--bd);border-radius:6px;background:var(--bg);color:var(--fg);font:13px/1.4 ui-monospace,Consolas,monospace;resize:vertical}
-.res img{max-width:120px;border-radius:4px;display:block;margin-bottom:8px}
-label{cursor:pointer}
+.ok{color:var(--acc)}
+.done{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap}
+.done img{width:72px;height:72px;object-fit:cover;border-radius:4px}
+.done .info{flex:1;min-width:200px}
+.det{margin-top:8px}
+.det input{flex:1;min-width:0;font:12px ui-monospace,Consolas,monospace}
+#hlist{max-height:340px;overflow:auto;margin-top:8px}
+.hrow{border-top:1px solid var(--bd);padding:8px 0}
+.bar{position:sticky;top:0;z-index:5;background:var(--bg);padding:6px 0}
 </style>
 </head>
 <body>
 <main>
 <h1>D&amp;D image uploader</h1>
-<p class="mut">Crop, upload to ImgBB, paste the Markdown into Obsidian.</p>
+<p class="mut">Drop in one image or a whole batch, crop each, upload, then copy the Markdown links.</p>
 
 <details class="panel" id="setup">
   <summary>ImgBB API key</summary>
-  <div class="row"><input type="password" id="key" placeholder="Paste your API key" autocomplete="off"><button id="saveKey">Save key</button></div>
-  <p class="mut">Saved only in this browser, never in the page code. Each person pastes their own key once. Get one at api.imgbb.com.</p>
+  <div class="row"><input type="password" id="key" class="grow" placeholder="Paste your API key" autocomplete="off"><button id="saveKey">Save key</button></div>
+  <p class="mut">First time? Get a free key at <a href="https://api.imgbb.com/" target="_blank" rel="noopener">api.imgbb.com</a>. It is saved only in this browser, never in the page code.</p>
 </details>
 
-<div class="panel">
-  <div class="row">
-    <label><input type="radio" name="mode" value="portrait" checked> Portrait (3:4)</label>
-    <label><input type="radio" name="mode" value="landscape"> Landscape (4:3)</label>
-    <label><input type="radio" name="mode" value="none"> No crop</label>
-  </div>
-  <p class="mut">Obsidian width in the generated line: <input type="text" id="width" value="400" style="width:70px"> px</p>
+<div class="panel row">
+  <label>Crop shape <select id="mode"><option value="portrait">Portrait 3:4</option><option value="landscape">Landscape 4:3</option><option value="none">No crop</option></select></label>
+  <label>Obsidian width <input type="text" id="width" style="width:70px"> px</label>
+  <span class="mut">Changing crop shape applies to every image not yet uploaded. You can still override each one.</span>
 </div>
 
-<div id="drop" tabindex="0">Drop an image here, click to choose one, or paste with Ctrl+V</div>
-<input type="file" id="file" accept="image/*" hidden>
+<div id="drop" tabindex="0">Drop images here, click to choose, or paste with Ctrl+V</div>
+<input type="file" id="file" accept="image/*" multiple hidden>
+<p class="mut">ImgBB documents a 32 MB limit per image and no batch limit or rate limit. This page keeps at most 50 images in the queue and uploads two at a time, retrying on errors.</p>
 
-<section id="editor" hidden>
-  <div class="panel">
-    <div id="stage"><img id="pic" alt="Image to crop" draggable="false"><div id="box"><div id="h"></div></div></div>
-    <p class="mut">Drag the box to move it. Drag the corner square to resize.</p>
-    <div class="row"><input type="text" id="name" placeholder="Name, for example blink-dog"><button class="go" id="up">Crop and upload</button></div>
-    <p id="msg" class="mut"></p>
-  </div>
-</section>
+<div class="bar row" id="bar" hidden>
+  <button class="go" id="upAll"></button>
+  <button id="copyAll"></button>
+  <button id="clearDone">Clear finished</button>
+  <span id="summary" class="mut"></span>
+</div>
+<section id="queue"></section>
 
-<section id="out"></section>
+<details class="panel" id="hist">
+  <summary id="hsum">Past uploads</summary>
+  <div class="row"><input type="text" id="hq" class="grow" placeholder="Search by name"></div>
+  <p class="mut">Saved in this browser only. Forgetting an entry does not delete the image from ImgBB.</p>
+  <div id="hlist"></div>
+</details>
 </main>
 
 <script>
 const $=id=>document.getElementById(id);
-const RATIOS={portrait:{w:3,h:4,out:[600,800]},landscape:{w:4,h:3,out:[800,600]}};
-let mode='portrait',file=null,box={x:0,y:0,w:0,h:0},drag=null;
-const pic=$('pic'),boxEl=$('box'),msg=$('msg');
+const R={portrait:{w:3,h:4,out:[600,800]},landscape:{w:4,h:3,out:[800,600]}};
+const MAXQ=50,MAXMB=32;
+const store={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:v}catch(e){return d}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+const el=(t,p={},...c)=>{const n=document.createElement(t);Object.assign(n,p);c.flat().forEach(x=>n.append(x));return n;};
+const clean=s=>(s||'').replace(/[|\[\]()]/g,'').trim();
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+let items=[],history=[];
+try{history=JSON.parse(store.get('imgHistory','[]'))}catch(e){}
+const width=()=>parseInt($('width').value,10)||400;
+const md=e=>'!['+e.name+'|'+width()+']('+e.url+')';
 
-try{$('key').value=localStorage.getItem('imgbbKey')||''; if($('key').value)$('setup').open=false; else $('setup').open=true;}catch(e){}
-$('saveKey').onclick=()=>{try{localStorage.setItem('imgbbKey',$('key').value.trim());$('setup').open=false;}catch(e){alert('Could not save the key in this browser.');}};
+/* settings */
+$('key').value=store.get('imgbbKey','');
+$('setup').open=!$('key').value;
+$('saveKey').onclick=()=>{store.set('imgbbKey',$('key').value.trim());$('setup').open=false;};
+$('width').value=store.get('imgWidth','400');
+$('width').onchange=()=>store.set('imgWidth',String(width()));
+$('mode').value=store.get('imgMode','portrait');
+$('mode').onchange=()=>{store.set('imgMode',$('mode').value);items.forEach(it=>{if(it.status!=='done'&&it.status!=='uploading'){it.mode=$('mode').value;it.ui.sel.value=it.mode;fit(it);}});};
 
-document.querySelectorAll('input[name=mode]').forEach(r=>r.onchange=()=>{mode=r.value;fit();});
+/* copy */
+function copyBtn(label,get){
+  const b=el('button',{textContent:label});
+  b.onclick=async()=>{const t=get();try{await navigator.clipboard.writeText(t);b.textContent='Copied';setTimeout(()=>b.textContent=label,1400);}catch(e){window.prompt('Copy this:',t);}};
+  return b;
+}
 
+/* intake */
 const drop=$('drop');
 drop.onclick=()=>$('file').click();
 drop.onkeydown=e=>{if(e.key==='Enter'||e.key===' ')$('file').click();};
-$('file').onchange=e=>load(e.target.files[0]);
+$('file').onchange=e=>{addFiles(e.target.files);e.target.value='';};
 ['dragover','dragenter'].forEach(t=>drop.addEventListener(t,e=>{e.preventDefault();drop.classList.add('over');}));
 ['dragleave','drop'].forEach(t=>drop.addEventListener(t,e=>{e.preventDefault();drop.classList.remove('over');}));
-drop.addEventListener('drop',e=>load(e.dataTransfer.files[0]));
-document.addEventListener('paste',e=>{for(const i of e.clipboardData.items){if(i.kind==='file'&&i.type.startsWith('image/')){load(i.getAsFile());break;}}});
+drop.addEventListener('drop',e=>addFiles(e.dataTransfer.files));
+document.addEventListener('paste',e=>{const fs=[...e.clipboardData.items].filter(i=>i.kind==='file'&&i.type.startsWith('image/')).map(i=>i.getAsFile());if(fs.length)addFiles(fs);});
 
-function load(f){
-  if(!f||!f.type.startsWith('image/'))return;
-  file=f;
-  pic.onload=()=>{fit();$('editor').hidden=false;};
-  pic.src=URL.createObjectURL(f);
-  $('name').value=(f.name||'image').replace(/\.[^.]+$/,'').replace(/[|\[\]()]/g,'');
-  if(!$('name').value||$('name').value==='image')$('name').value='image';
-  msg.textContent='';msg.className='mut';
+function addFiles(list){
+  const fs=[...list].filter(f=>f&&f.type.startsWith('image/'));
+  let skipped=0;
+  for(const f of fs){if(items.length>=MAXQ){skipped++;continue;}addItem(f);}
+  $('summary').textContent=skipped?skipped+' image(s) skipped: the queue holds '+MAXQ+' at most. Upload or clear some first.':'';
+  updateBar();
 }
 
-function fit(){
-  const r=RATIOS[mode];
-  if(!pic.src||!r){draw();return;}
-  const dw=pic.clientWidth,dh=pic.clientHeight,ar=r.w/r.h;
-  const w=Math.min(dw,dh*ar);
-  box={w:w,h:w/ar,x:(dw-w)/2,y:(dh-w/ar)/2};
-  draw();
+function addItem(f){
+  const it={file:f,mode:$('mode').value,name:clean(f.name.replace(/\.[^.]+$/,''))||'image',status:'ready',url:URL.createObjectURL(f)};
+  it.card=el('div',{className:'panel'});
+  items.push(it);$('queue').append(it.card);buildEditor(it);
 }
-function draw(){
-  if(!RATIOS[mode]){boxEl.style.display='none';return;}
-  boxEl.style.display='block';
-  Object.assign(boxEl.style,{left:box.x+'px',top:box.y+'px',width:box.w+'px',height:box.h+'px'});
-}
-window.addEventListener('resize',fit);
 
-boxEl.addEventListener('pointerdown',e=>{
-  e.preventDefault();boxEl.setPointerCapture(e.pointerId);
-  drag={t:e.target===$('h')?'r':'m',sx:e.clientX,sy:e.clientY,b:{...box}};
-});
-boxEl.addEventListener('pointermove',e=>{
-  if(!drag)return;
-  const dx=e.clientX-drag.sx,dy=e.clientY-drag.sy,dw=pic.clientWidth,dh=pic.clientHeight;
-  const ar=RATIOS[mode].w/RATIOS[mode].h;
-  if(drag.t==='m'){
-    box.x=Math.min(Math.max(0,drag.b.x+dx),dw-box.w);
-    box.y=Math.min(Math.max(0,drag.b.y+dy),dh-box.h);
-  }else{
-    let w=Math.max(40,drag.b.w+dx);
-    w=Math.min(w,dw-box.x,(dh-box.y)*ar);
-    box.w=w;box.h=w/ar;
-  }
-  draw();
-});
-boxEl.addEventListener('pointerup',()=>drag=null);
-boxEl.addEventListener('pointercancel',()=>drag=null);
-
-function say(t,bad){msg.textContent=t;msg.className=bad?'err':'mut';}
-
-$('up').onclick=async()=>{
-  let key='';try{key=(localStorage.getItem('imgbbKey')||'').trim();}catch(e){}
-  if(!key){$('setup').open=true;say('Add your ImgBB API key first.',true);return;}
-  const name=($('name').value.trim()||'image').replace(/[|\[\]()]/g,'');
-  $('up').disabled=true;say('Uploading...');
-  try{
-    let blob=file;
-    if(RATIOS[mode]){
-      const s=pic.naturalWidth/pic.clientWidth,[ow,oh]=RATIOS[mode].out;
-      const c=document.createElement('canvas');c.width=ow;c.height=oh;
-      const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,ow,oh);
-      x.drawImage(pic,box.x*s,box.y*s,box.w*s,box.h*s,0,0,ow,oh);
-      blob=await new Promise(r=>c.toBlob(r,'image/jpeg',.9));
-    }
-    const fd=new FormData();fd.append('image',blob);fd.append('name',name);
-    const res=await fetch('https://api.imgbb.com/1/upload?key='+encodeURIComponent(key),{method:'POST',body:fd});
-    const j=await res.json();
-    if(!j.success)throw new Error((j.error&&j.error.message)||'ImgBB rejected the upload.');
-    show(j.data,name);say('Uploaded.');
-  }catch(err){
-    say(err.name==='TypeError'?'Network error. Check your connection, or the browser may be blocking the request to ImgBB.':err.message,true);
-  }finally{$('up').disabled=false;}
-};
-
-function show(d,name){
-  const w=parseInt($('width').value,10)||400;
-  const md='!['+name+'|'+w+']('+d.url+')';
-  const card=document.createElement('div');card.className='panel res';
-  const im=document.createElement('img');im.src=d.url;im.alt=name;card.appendChild(im);
-  [['Markdown for Obsidian',md],['Direct URL',d.url],['Delete link',d.delete_url]].forEach(([label,val])=>{
-    const p=document.createElement('p');p.className='mut';p.textContent=label;
-    const ta=document.createElement('textarea');ta.readOnly=true;ta.value=val;
-    const b=document.createElement('button');b.textContent='Copy';
-    b.onclick=async()=>{try{await navigator.clipboard.writeText(val);b.textContent='Copied';}catch(e){ta.select();b.textContent='Select and copy';}setTimeout(()=>b.textContent='Copy',1500);};
-    card.append(p,ta,b);
+function buildEditor(it){
+  const pic=el('img',{alt:it.name,draggable:false});
+  const h=el('div',{className:'h'}),boxEl=el('div',{className:'box'},h);
+  const stage=el('div',{className:'stage'},pic,boxEl);
+  const sel=el('select',{},...[['portrait','Portrait 3:4'],['landscape','Landscape 4:3'],['none','No crop']].map(([v,l])=>el('option',{value:v,textContent:l})));
+  sel.value=it.mode;sel.onchange=()=>{it.mode=sel.value;fit(it);};
+  const name=el('input',{type:'text',className:'grow',value:it.name,placeholder:'Name'});
+  name.oninput=()=>{it.name=clean(name.value)||'image';};
+  const st=el('span',{className:'mut'});
+  it.ui={pic,boxEl,sel,st};
+  it.card.replaceChildren(stage,el('div',{className:'row'},name,sel,el('button',{textContent:'Remove',onclick:()=>{URL.revokeObjectURL(it.url);items=items.filter(x=>x!==it);it.card.remove();updateBar();}}),st));
+  pic.onload=()=>{it.nw=pic.naturalWidth;fit(it);};
+  pic.src=it.url;
+  let d=null;
+  boxEl.addEventListener('pointerdown',e=>{e.preventDefault();boxEl.setPointerCapture(e.pointerId);d={t:e.target===h?'r':'m',sx:e.clientX,sy:e.clientY,b:{...it.box}};});
+  boxEl.addEventListener('pointermove',e=>{
+    if(!d||!it.box)return;
+    const s=pic.clientWidth/it.nw,dx=(e.clientX-d.sx)/s,dy=(e.clientY-d.sy)/s,nh=pic.naturalHeight,ar=R[it.mode].w/R[it.mode].h,b=it.box;
+    if(d.t==='m'){b.x=Math.min(Math.max(0,d.b.x+dx),it.nw-b.w);b.y=Math.min(Math.max(0,d.b.y+dy),nh-b.h);}
+    else{let w=Math.max(40/s,d.b.w+dx);w=Math.min(w,it.nw-b.x,(nh-b.y)*ar);b.w=w;b.h=w/ar;}
+    draw(it);
   });
-  $('out').prepend(card);
+  const end=()=>d=null;boxEl.addEventListener('pointerup',end);boxEl.addEventListener('pointercancel',end);
 }
+
+function fit(it){
+  const r=R[it.mode];
+  if(!r||!it.nw){draw(it);return;}
+  const nh=it.ui.pic.naturalHeight,ar=r.w/r.h,w=Math.min(it.nw,nh*ar),h=w/ar;
+  it.box={w,h,x:(it.nw-w)/2,y:(nh-h)/2};draw(it);
+}
+function draw(it){
+  const b=it.ui.boxEl;
+  if(!R[it.mode]||!it.box){b.style.display='none';return;}
+  const s=it.ui.pic.clientWidth/it.nw;
+  b.style.display='block';
+  Object.assign(b.style,{left:it.box.x*s+'px',top:it.box.y*s+'px',width:it.box.w*s+'px',height:it.box.h*s+'px'});
+}
+window.addEventListener('resize',()=>items.forEach(it=>{if(it.ui&&it.status!=='done')draw(it);}));
+
+/* upload */
+function setSt(it,t,cls){if(it.ui&&it.ui.st){it.ui.st.textContent=t;it.ui.st.className=cls||'mut';}}
+function uniqueName(it){
+  const used=new Set(items.filter(x=>x!==it&&x.data).map(x=>x.data.name.toLowerCase()));
+  let n=it.name,k=2;while(used.has(n.toLowerCase()))n=it.name+'-'+(k++);return n;
+}
+async function send(it,key){
+  it.status='uploading';setSt(it,'Uploading...');
+  try{
+    let blob=it.file;
+    if(R[it.mode]){
+      const p=it.ui.pic,[ow,oh]=R[it.mode].out,c=document.createElement('canvas');c.width=ow;c.height=oh;
+      const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,ow,oh);
+      x.drawImage(p,it.box.x,it.box.y,it.box.w,it.box.h,0,0,ow,oh);
+      blob=await new Promise(r=>c.toBlob(r,'image/jpeg',.9));
+    }else if(blob.size>MAXMB*1048576)throw new Error('Over ImgBB\u2019s 32 MB limit.');
+    const name=uniqueName(it);
+    for(let a=1;;a++){
+      let res,j={};
+      try{
+        const fd=new FormData();fd.append('image',blob);fd.append('name',name);
+        res=await fetch('https://api.imgbb.com/1/upload?key='+encodeURIComponent(key),{method:'POST',body:fd});
+        j=await res.json().catch(()=>({}));
+      }catch(e){if(a<3){setSt(it,'Retrying...');await sleep(1500*a);continue;}throw new Error('Network error. Check your connection, or the request to ImgBB may be blocked.');}
+      if(res.ok&&j.success){finish(it,j.data,name);return;}
+      if((res.status===429||res.status>=500)&&a<3){setSt(it,'ImgBB is busy, retrying...');await sleep(1500*a);continue;}
+      throw new Error((j.error&&j.error.message)||'ImgBB error '+res.status);
+    }
+  }catch(e){it.status='error';setSt(it,e.message,'err');}
+}
+function finish(it,d,name){
+  it.data={name,url:d.url,del:d.delete_url,t:Date.now()};
+  history.unshift(it.data);history=history.slice(0,1000);store.set('imgHistory',JSON.stringify(history));
+  it.status='done';URL.revokeObjectURL(it.url);
+  it.card.replaceChildren(el('div',{className:'done'},el('img',{src:d.url,alt:name}),el('div',{className:'info'},el('div',{textContent:name+' uploaded',className:'ok'}),actions(it.data))));
+  updateBar();renderHistory();
+}
+$('upAll').onclick=async()=>{
+  const key=store.get('imgbbKey','').trim();
+  if(!key){$('setup').open=true;$('summary').textContent='Add your ImgBB API key first.';return;}
+  const todo=items.filter(i=>i.status==='ready'||i.status==='error');let n=0;
+  $('upAll').disabled=true;
+  const worker=async()=>{while(n<todo.length){await send(todo[n++],key);updateBar(true);}};
+  await Promise.all([worker(),worker()]);
+  $('upAll').disabled=false;updateBar();
+};
+$('copyAll').onclick=null;
+$('clearDone').onclick=()=>{items=items.filter(i=>{if(i.status==='done'){i.card.remove();return false;}return true;});updateBar();};
+
+function updateBar(busy){
+  const pend=items.filter(i=>i.status==='ready'||i.status==='error').length,done=items.filter(i=>i.status==='done');
+  $('bar').hidden=!items.length;
+  $('upAll').textContent='Upload all ('+pend+')';
+  $('upAll').disabled=!pend||!!busy;
+  const ca=$('copyAll');ca.textContent='Copy all Markdown ('+done.length+')';ca.disabled=!done.length;
+  ca.onclick=async()=>{const t=done.map(i=>md(i.data)).join('\n');try{await navigator.clipboard.writeText(t);ca.textContent='Copied '+done.length;setTimeout(()=>updateBar(),1400);}catch(e){window.prompt('Copy this:',t);}};
+  $('clearDone').disabled=!done.length;
+}
+
+/* shared actions for finished uploads and history rows */
+function actions(e){
+  const det=el('div',{className:'det',hidden:true},
+    el('div',{className:'row'},'Direct URL',el('input',{type:'text',readOnly:true,value:e.url}),copyBtn('Copy',()=>e.url)),
+    el('div',{className:'row'},'Delete link',el('input',{type:'text',readOnly:true,value:e.del||''}),copyBtn('Copy',()=>e.del||'')));
+  const tg=el('button',{textContent:'Details'});
+  tg.onclick=()=>{det.hidden=!det.hidden;tg.textContent=det.hidden?'Details':'Hide details';};
+  return el('div',{},el('div',{className:'row'},copyBtn('Copy Markdown',()=>md(e)),tg),det);
+}
+
+/* history */
+function renderHistory(){
+  const q=$('hq').value.trim().toLowerCase();
+  const all=history.filter(e=>!q||e.name.toLowerCase().includes(q));
+  $('hsum').textContent='Past uploads ('+history.length+')';
+  const list=$('hlist');list.replaceChildren();
+  all.slice(0,100).forEach(e=>{
+    const forget=el('button',{textContent:'Forget'});
+    forget.onclick=()=>{history=history.filter(x=>x!==e);store.set('imgHistory',JSON.stringify(history));renderHistory();};
+    list.append(el('div',{className:'hrow'},el('div',{className:'row'},el('strong',{textContent:e.name,className:'grow'}),el('span',{className:'mut',textContent:new Date(e.t).toLocaleDateString()}),forget),actions(e)));
+  });
+  if(!all.length)list.append(el('p',{className:'mut',textContent:history.length?'No matches.':'Nothing uploaded yet.'}));
+  else if(all.length>100)list.append(el('p',{className:'mut',textContent:'Showing 100 of '+all.length+'. Search to narrow it down.'}));
+}
+$('hq').oninput=renderHistory;
+renderHistory();updateBar();
 </script>
 </body>
 </html>
