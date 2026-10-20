@@ -22,6 +22,11 @@ button:disabled{opacity:.5;cursor:default}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0}
 .row>.grow{flex:1;min-width:140px}
 summary{cursor:pointer}
+.menubar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;border-bottom:1px solid var(--bd);padding-bottom:10px;margin-bottom:8px}
+.menubar h1{margin:0}
+.menubar .row{margin:0}
+.menubar button.on{background:var(--acc);color:var(--accfg);border-color:var(--acc)}
+.drawer[hidden]{display:none}
 #drop{border:2px dashed var(--bd);border-radius:8px;padding:30px 16px;text-align:center;color:var(--mut);cursor:pointer}
 #drop.over{border-color:var(--acc);color:var(--fg)}
 .stage{position:relative;display:inline-block;max-width:100%;overflow:hidden;line-height:0;border-radius:4px;user-select:none}
@@ -42,14 +47,26 @@ summary{cursor:pointer}
 </head>
 <body>
 <main>
-<h1>D&amp;D image uploader</h1>
-<p class="mut">Drop in one image or a whole batch, crop each, upload, then copy the Markdown links.</p>
+<nav class="menubar">
+  <h1>D&amp;D image uploader</h1>
+  <div class="row">
+    <button id="bHist">Past uploads</button>
+    <button id="bKey">API key</button>
+  </div>
+</nav>
 
-<details class="panel" id="setup">
-  <summary>ImgBB API key</summary>
+<div class="panel drawer" id="setup" hidden>
   <div class="row"><input type="password" id="key" class="grow" placeholder="Paste your API key" autocomplete="off"><button id="saveKey">Save key</button></div>
   <p class="mut">First time? Get a free key at <a href="https://api.imgbb.com/" target="_blank" rel="noopener">api.imgbb.com</a>. It is saved only in this browser, never in the page code.</p>
-</details>
+</div>
+
+<div class="panel drawer" id="hist" hidden>
+  <div class="row"><input type="text" id="hq" class="grow" placeholder="Search past uploads by name"></div>
+  <p class="mut">Saved in this browser only. Forgetting an entry does not delete the image from ImgBB.</p>
+  <div id="hlist"></div>
+</div>
+
+<p class="mut">Drop in one image or a whole batch, crop each, upload, then copy the Markdown links.</p>
 
 <div class="panel row">
   <label>Crop shape <select id="mode"><option value="portrait">Portrait 3:4</option><option value="landscape">Landscape 4:3</option><option value="none">No crop</option></select></label>
@@ -68,13 +85,6 @@ summary{cursor:pointer}
   <span id="summary" class="mut"></span>
 </div>
 <section id="queue"></section>
-
-<details class="panel" id="hist">
-  <summary id="hsum">Past uploads</summary>
-  <div class="row"><input type="text" id="hq" class="grow" placeholder="Search by name"></div>
-  <p class="mut">Saved in this browser only. Forgetting an entry does not delete the image from ImgBB.</p>
-  <div id="hlist"></div>
-</details>
 </main>
 
 <script>
@@ -92,8 +102,15 @@ const md=e=>'!['+e.name+'|'+width()+']('+e.url+')';
 
 /* settings */
 $('key').value=store.get('imgbbKey','');
-$('setup').open=!$('key').value;
-$('saveKey').onclick=()=>{store.set('imgbbKey',$('key').value.trim());$('setup').open=false;};
+function menu(id,force){
+  ['setup','hist'].forEach(k=>{const d=$(k);d.hidden=k===id?(force===undefined?!d.hidden:!force):true;});
+  $('bKey').classList.toggle('on',!$('setup').hidden);
+  $('bHist').classList.toggle('on',!$('hist').hidden);
+}
+$('bKey').onclick=()=>menu('setup');
+$('bHist').onclick=()=>menu('hist');
+menu('setup',!$('key').value);
+$('saveKey').onclick=()=>{store.set('imgbbKey',$('key').value.trim());menu('setup',false);};
 $('width').value=store.get('imgWidth','400');
 $('width').onchange=()=>store.set('imgWidth',String(width()));
 $('mode').value=store.get('imgMode','portrait');
@@ -209,7 +226,7 @@ function finish(it,d,name){
 }
 $('upAll').onclick=async()=>{
   const key=store.get('imgbbKey','').trim();
-  if(!key){$('setup').open=true;$('summary').textContent='Add your ImgBB API key first.';return;}
+  if(!key){menu('setup',true);$('summary').textContent='Add your ImgBB API key first.';return;}
   const todo=items.filter(i=>i.status==='ready'||i.status==='error');let n=0;
   $('upAll').disabled=true;
   const worker=async()=>{while(n<todo.length){await send(todo[n++],key);updateBar(true);}};
@@ -243,7 +260,7 @@ function actions(e){
 function renderHistory(){
   const q=$('hq').value.trim().toLowerCase();
   const all=history.filter(e=>!q||e.name.toLowerCase().includes(q));
-  $('hsum').textContent='Past uploads ('+history.length+')';
+  $('bHist').textContent='Past uploads ('+history.length+')';
   const list=$('hlist');list.replaceChildren();
   all.slice(0,100).forEach(e=>{
     const forget=el('button',{textContent:'Forget'});
