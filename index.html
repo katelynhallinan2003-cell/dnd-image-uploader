@@ -34,8 +34,7 @@ summary{cursor:pointer}
 .box{position:absolute;border:2px solid var(--acc);box-shadow:0 0 0 9999px rgba(0,0,0,.6);cursor:move;touch-action:none}
 .stage canvas{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;touch-action:none}
 .row[hidden]{display:none}
-.cmp{display:block;width:100%;border-radius:4px;touch-action:none;cursor:grab;margin-top:6px}
-.cmp[hidden]{display:none}
+.brush{position:absolute;display:none;pointer-events:none;border:1.5px solid #fff;box-shadow:0 0 0 1px #000;border-radius:50%;transform:translate(-50%,-50%)}
 button.on{background:var(--acc);color:var(--accfg);border-color:var(--acc)}
 .h{position:absolute;right:-2px;bottom:-2px;width:22px;height:22px;background:var(--acc);cursor:nwse-resize;border-radius:4px 0 0 0}
 .err{color:#e5736b}
@@ -166,31 +165,18 @@ function buildEditor(it){
   const st=el('span',{className:'mut'});
   const eb=el('button',{textContent:'Erase'});
   const size=el('input',{type:'range',min:8,max:120,value:30});
-  const fill=el('select',{},el('option',{value:'white',textContent:'Fill white'}),el('option',{value:'sample',textContent:'Match background'}));
-  const tools=el('div',{className:'row',hidden:true},'Brush',size,fill,
+  const fill=el('select',{},el('option',{value:'sample',textContent:'Match background'}),el('option',{value:'custom',textContent:'Custom color'}));
+  const color=el('input',{type:'color',value:'#ffffff',hidden:true,title:'Fill color'});
+  const pick=el('button',{textContent:'Eyedropper',hidden:true,title:'Click, then click the image to copy a color from it'});
+  fill.onchange=()=>{const c=fill.value==='custom';color.hidden=pick.hidden=!c;if(!c)setPicking(it,false);};
+  pick.onclick=()=>setPicking(it,!it.picking);
+  const tools=el('div',{className:'row',hidden:true},'Brush',size,fill,color,pick,
     el('button',{textContent:'Undo',onclick:()=>{if(it.strokes&&it.strokes.length){it.strokes.pop();redraw(it);}}}),
     el('button',{textContent:'Reset',onclick:()=>{if(it.strokes){it.strokes=[];redraw(it);}}}),
-    el('span',{className:'mut',textContent:'Match background copies the color where a stroke starts, so start on the background and drag toward the part you want gone.'}));
-  const ub=el('button',{textContent:'Upscale'});
-  const upf=el('select',{},el('option',{value:2,textContent:'2x'}),el('option',{value:3,textContent:'3x'}));
-  const ups=el('input',{type:'range',min:0,max:100,value:25});
-  const ust=el('span',{className:'mut'});
-  const split=el('input',{type:'range',min:0,max:100,value:50,hidden:true});
-  const cmp=el('canvas',{className:'cmp',hidden:true});
-  const cb=el('button',{textContent:'Compare',disabled:true});
-  const upTools=el('div',{className:'row',hidden:true},'Scale',upf,'Sharpen',ups,
-    el('button',{textContent:'Run',className:'go',onclick:()=>upscale(it)}),
-    el('button',{textContent:'Revert',onclick:()=>revertUp(it)}),cb,split,ust);
-  it.ui={pic,boxEl,sel,st,stage,eb,size,fill,tools,ub,upTools,upf,ups,ust,cb,split,cmp};
-  ub.onclick=()=>{upTools.hidden=!upTools.hidden;ub.classList.toggle('on',!upTools.hidden);};
-  cb.onclick=()=>toggleCmp(it);
-  split.oninput=()=>{it.split=+split.value;drawCmp(it);};
-  let pd=null;
-  cmp.addEventListener('pointerdown',e=>{cmp.setPointerCapture(e.pointerId);pd={x:e.clientX,y:e.clientY,p:{...it.pan}};});
-  cmp.addEventListener('pointermove',e=>{if(!pd)return;const k=cmp.width/cmp.clientWidth;it.pan={x:pd.p.x-(e.clientX-pd.x)*k,y:pd.p.y-(e.clientY-pd.y)*k};drawCmp(it);});
-  const pe=()=>pd=null;cmp.addEventListener('pointerup',pe);cmp.addEventListener('pointercancel',pe);
+    el('span',{className:'mut',textContent:'Match background copies the color where a stroke starts, so start on the background and drag toward the part you want gone. Custom color: pick a color, or use the eyedropper and click the image.'}));
+  it.ui={pic,boxEl,sel,st,stage,eb,size,fill,color,pick,tools};
   eb.onclick=()=>setErase(it,!it.erasing);
-  it.card.replaceChildren(stage,el('div',{className:'row'},name,sel,eb,ub,el('button',{textContent:'Remove',onclick:()=>{URL.revokeObjectURL(it.url);items=items.filter(x=>x!==it);it.card.remove();updateBar();}}),st),tools,upTools,cmp);
+  it.card.replaceChildren(stage,el('div',{className:'row'},name,sel,eb,el('button',{textContent:'Remove',onclick:()=>{URL.revokeObjectURL(it.url);items=items.filter(x=>x!==it);it.card.remove();updateBar();}}),st),tools);
   pic.onload=()=>{it.nw=pic.naturalWidth;fit(it);};
   pic.src=it.url;
   let d=null;
@@ -226,109 +212,57 @@ function sample(cv,x,y){
   const n=5,sx=Math.max(0,Math.min(cv.width-n,Math.round(x-2))),sy=Math.max(0,Math.min(cv.height-n,Math.round(y-2)));
   const d=cv.getContext('2d').getImageData(sx,sy,n,n).data;let r=0,g=0,b=0;
   for(let i=0;i<d.length;i+=4){r+=d[i];g+=d[i+1];b+=d[i+2];}
-  const k=d.length/4;return'rgb('+Math.round(r/k)+','+Math.round(g/k)+','+Math.round(b/k)+')';
+  const k=d.length/4;return[Math.round(r/k),Math.round(g/k),Math.round(b/k)];
 }
 function redraw(it){
-  const cv=it.cv;cv.getContext('2d').drawImage(it.base||it.ui.pic,0,0);
+  const cv=it.cv;cv.getContext('2d').drawImage(it.ui.pic,0,0);
   it.strokes.forEach(s=>s.p.forEach((q,i)=>seg(cv,s,s.p[Math.max(0,i-1)],q)));
 }
 function ensureCv(it){
   if(it.cv)return;
-  const p=it.base||it.ui.pic,cv=el('canvas');cv.width=p.naturalWidth||p.width;cv.height=p.naturalHeight||p.height;
+  const p=it.ui.pic,cv=el('canvas');cv.width=p.naturalWidth;cv.height=p.naturalHeight;
   cv.getContext('2d').drawImage(p,0,0);
   it.cv=cv;it.strokes=[];it.ui.stage.insertBefore(cv,it.ui.boxEl);
+  const ring=el('div',{className:'brush'});it.ui.stage.append(ring);it.ui.ring=ring;
+  const place=e=>{
+    if(!it.erasing||it.picking){ring.style.display='none';return;}
+    const r=it.ui.stage.getBoundingClientRect(),d=+it.ui.size.value;
+    Object.assign(ring.style,{display:'block',width:d+'px',height:d+'px',left:e.clientX-r.left+'px',top:e.clientY-r.top+'px'});
+  };
+  cv.addEventListener('pointermove',place);cv.addEventListener('pointerenter',place);
+  cv.addEventListener('pointerleave',()=>ring.style.display='none');
   let cur=null;
   const pt=e=>{const r=cv.getBoundingClientRect();return[(e.clientX-r.left)*cv.width/r.width,(e.clientY-r.top)*cv.height/r.height];};
   cv.addEventListener('pointerdown',e=>{
     e.preventDefault();cv.setPointerCapture(e.pointerId);
     const q=pt(e),k=cv.width/cv.clientWidth;
-    cur={c:it.ui.fill.value==='white'?'#fff':sample(cv,q[0],q[1]),r:it.ui.size.value*k/2,p:[q]};
+    if(it.picking){
+      const [r,g,b]=sample(cv,q[0],q[1]);
+      it.ui.color.value='#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');
+      setPicking(it,false);return;
+    }
+    const col=it.ui.fill.value==='custom'?it.ui.color.value:'rgb('+sample(cv,q[0],q[1]).join(',')+')';
+    cur={c:col,r:it.ui.size.value*k/2,p:[q]};
     it.strokes.push(cur);seg(cv,cur,q,q);
   });
   cv.addEventListener('pointermove',e=>{if(!cur)return;const q=pt(e);seg(cv,cur,cur.p[cur.p.length-1],q);cur.p.push(q);});
   const end=()=>cur=null;cv.addEventListener('pointerup',end);cv.addEventListener('pointercancel',end);
+}
+function setPicking(it,on){
+  it.picking=on;it.ui.pick.classList.toggle('on',on);
+  if(it.cv)it.cv.style.cursor=on?'crosshair':(it.erasing?'none':'');
+  if(on&&it.ui.ring)it.ui.ring.style.display='none';
 }
 function setErase(it,on){
   if(on&&!it.ui.pic.naturalWidth)return;
   if(on)ensureCv(it);
   it.erasing=on;
   it.ui.boxEl.style.pointerEvents=on?'none':'';
-  if(it.cv){it.cv.style.pointerEvents=on?'auto':'none';it.cv.style.cursor='crosshair';}
+  if(!on)setPicking(it,false);
+  if(it.cv){it.cv.style.pointerEvents=on?'auto':'none';it.cv.style.cursor=on?'none':'';}
+  if(!on&&it.ui.ring)it.ui.ring.style.display='none';
   it.ui.tools.hidden=!on;it.ui.eb.classList.toggle('on',on);
   it.ui.eb.textContent=on?'Done erasing':'Erase';
-}
-
-/* upscale */
-const kern=x=>{x=Math.abs(x);if(x>=3)return 0;if(x<1e-8)return 1;const p=Math.PI*x;return 3*Math.sin(p)*Math.sin(p/3)/(p*p);};
-function axis(inp,iw,ih,n,horiz){
-  const len=horiz?iw:ih,scale=n/len,ow=horiz?n:iw,oh=horiz?ih:n,out=new Float32Array(ow*oh*4),W=[];
-  for(let o=0;o<n;o++){
-    const c=(o+.5)/scale-.5,i0=Math.floor(c)-2,ws=[];let sum=0;
-    for(let k=0;k<6;k++){const w=kern(c-(i0+k));ws.push(w);sum+=w;}
-    W.push({i0,ws:ws.map(w=>w/sum)});
-  }
-  for(let j=0;j<(horiz?ih:iw);j++)for(let o=0;o<n;o++){
-    const {i0,ws}=W[o];let r=0,g=0,b=0;
-    for(let k=0;k<6;k++){
-      let i=i0+k;i=i<0?0:i>=len?len-1:i;
-      const p=(horiz?j*iw+i:i*iw+j)*4,w=ws[k];r+=inp[p]*w;g+=inp[p+1]*w;b+=inp[p+2]*w;
-    }
-    const q=(horiz?j*ow+o:o*ow+j)*4;out[q]=r;out[q+1]=g;out[q+2]=b;out[q+3]=255;
-  }
-  return out;
-}
-function sharpen(a,w,h,amt){
-  const o=a.slice();
-  for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++){
-    const p=(y*w+x)*4;
-    for(let c=0;c<3;c++){const q=p+c;let s=0;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++)s+=o[q+(dy*w+dx)*4];a[q]=o[q]+amt*(o[q]-s/9);}
-  }
-}
-function toCanvas(src){
-  const c=document.createElement('canvas');c.width=src.naturalWidth||src.width;c.height=src.naturalHeight||src.height;
-  const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(src,0,0);return c;
-}
-async function upscale(it){
-  const u=it.ui,f=+u.upf.value,amt=u.ups.value/100;
-  if(!u.pic.naturalWidth)return;
-  const pre=it.pre||toCanvas(it.cv||u.pic),w=Math.round(pre.width*f),h=Math.round(pre.height*f);
-  if(w*h>6e6){u.ust.textContent='Too large to upscale in the browser (limit about 6 megapixels after scaling). Try 2x.';u.ust.className='err';return;}
-  u.ust.textContent='Upscaling...';u.ust.className='mut';await sleep(30);
-  try{
-    let a=axis(pre.getContext('2d').getImageData(0,0,pre.width,pre.height).data,pre.width,pre.height,w,true);
-    a=axis(a,w,pre.height,h,false);
-    if(amt)sharpen(a,w,h,amt*1.2);
-    const up=document.createElement('canvas');up.width=w;up.height=h;
-    up.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(a),w,h),0,0);
-    it.pre=pre;it.base=up;it.up=true;
-    if(it.cv){it.cv.width=w;it.cv.height=h;it.strokes=[];redraw(it);}else ensureCv(it);
-    u.cb.disabled=false;u.cmp.hidden=true;toggleCmp(it);
-    u.ust.textContent='Upscaled to '+w+' x '+h+'.';
-  }catch(e){u.ust.textContent='Upscale failed: '+e.message;u.ust.className='err';}
-}
-function revertUp(it){
-  if(!it.up)return;const u=it.ui;
-  it.base=it.pre;it.pre=null;it.up=false;
-  if(it.cv){it.cv.width=it.base.width;it.cv.height=it.base.height;it.strokes=[];redraw(it);}
-  u.cmp.hidden=true;u.split.hidden=true;u.cb.disabled=true;u.cb.classList.remove('on');
-  u.ust.textContent='Reverted to the original size.';u.ust.className='mut';
-}
-function toggleCmp(it){
-  const u=it.ui;if(!it.up)return;
-  u.cmp.hidden=!u.cmp.hidden;u.split.hidden=u.cmp.hidden;u.cb.classList.toggle('on',!u.cmp.hidden);
-  if(u.cmp.hidden)return;
-  const A=it.base;u.cmp.width=Math.min(720,A.width);u.cmp.height=Math.min(360,A.height);
-  it.pan={x:A.width/2,y:A.height/2};it.split=+u.split.value;drawCmp(it);
-}
-function drawCmp(it){
-  if(!it.up||!it.pre)return;
-  const c=it.ui.cmp,x=c.getContext('2d'),A=it.base,B=it.pre,f=A.width/B.width,cw=c.width,ch=c.height;
-  const rx=Math.max(0,Math.min(A.width-cw,it.pan.x-cw/2)),ry=Math.max(0,Math.min(A.height-ch,it.pan.y-ch/2));
-  x.imageSmoothingEnabled=true;x.imageSmoothingQuality='low';
-  x.drawImage(B,rx/f,ry/f,cw/f,ch/f,0,0,cw,ch);
-  const s=Math.round(cw*it.split/100);
-  x.save();x.beginPath();x.rect(s,0,cw-s,ch);x.clip();x.drawImage(A,rx,ry,cw,ch,0,0,cw,ch);x.restore();
-  x.fillStyle='#fff';x.fillRect(s-1,0,2,ch);
 }
 
 /* upload */
@@ -344,11 +278,10 @@ async function send(it,key){
     if(R[it.mode]){
       const p=it.cv||it.ui.pic,[ow,oh]=R[it.mode].out,c=document.createElement('canvas');c.width=ow;c.height=oh;
       const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,ow,oh);
-      const k=p===it.cv?it.cv.width/it.nw:1;
-      x.drawImage(p,it.box.x*k,it.box.y*k,it.box.w*k,it.box.h*k,0,0,ow,oh);
+      x.drawImage(p,it.box.x,it.box.y,it.box.w,it.box.h,0,0,ow,oh);
       blob=await new Promise(r=>c.toBlob(r,'image/jpeg',.9));
     }else{
-      if(it.up||(it.strokes&&it.strokes.length))blob=await new Promise(r=>it.cv.toBlob(r,'image/jpeg',.92));
+      if(it.strokes&&it.strokes.length)blob=await new Promise(r=>it.cv.toBlob(r,'image/jpeg',.92));
       if(blob.size>MAXMB*1048576)throw new Error('Over ImgBB\u2019s 32 MB limit.');
     }
     const name=uniqueName(it);
