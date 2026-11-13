@@ -47,6 +47,8 @@ button.on{background:var(--acc);color:var(--accfg);border-color:var(--acc)}
 #hlist{max-height:340px;overflow:auto;margin-top:8px}
 .hrow{border-top:1px solid var(--bd);padding:8px 0}
 .bar{position:sticky;top:0;z-index:5;background:var(--bg);padding:6px 0}
+.totop{position:fixed;right:16px;bottom:16px;z-index:20;padding:10px 16px;border-radius:999px;background:var(--acc);color:var(--accfg);border-color:var(--acc);font-weight:bold;box-shadow:0 2px 10px rgba(0,0,0,.4)}
+.totop[hidden]{display:none}
 </style>
 </head>
 <body>
@@ -72,9 +74,9 @@ button.on{background:var(--acc);color:var(--accfg);border-color:var(--acc)}
 </div>
 
 <div class="panel drawer row" id="settings" hidden>
-  <label>Crop shape <select id="mode"><option value="portrait">Portrait 3:4</option><option value="landscape">Landscape 4:3</option><option value="square">Square 1:1</option><option value="none">No crop</option></select></label>
+  <label>Crop shape <select id="mode"><option value="auto">Auto (best fit)</option><option value="portrait">Portrait 3:4</option><option value="landscape">Landscape 4:3</option><option value="square">Square 1:1</option><option value="none">No crop</option></select></label>
   <label>Obsidian width <input type="text" id="width" style="width:70px"> px</label>
-  <span class="mut">Changing crop shape applies to every image not yet uploaded. You can still override each one.</span>
+  <span class="mut">Auto picks portrait, landscape or square for each image based on its shape. Choosing a fixed shape applies it to every image not yet uploaded. You can still override each one.</span>
 </div>
 
 <p class="mut">Drop in one image or a whole batch, crop each, upload, then copy the Markdown links.</p>
@@ -91,6 +93,7 @@ button.on{background:var(--acc);color:var(--accfg);border-color:var(--acc)}
 </div>
 <section id="queue"></section>
 </main>
+<button id="toTop" class="totop" hidden aria-label="Back to top" title="Back to top">&#8593; Back to top</button>
 
 <script>
 const $=id=>document.getElementById(id);
@@ -120,8 +123,18 @@ menu('setup',!$('key').value);
 $('saveKey').onclick=()=>{store.set('imgbbKey',$('key').value.trim());menu('setup',false);};
 $('width').value=store.get('imgWidth','400');
 $('width').onchange=()=>store.set('imgWidth',String(width()));
-$('mode').value=store.get('imgMode','portrait');
-$('mode').onchange=()=>{store.set('imgMode',$('mode').value);items.forEach(it=>{if(it.status!=='done'&&it.status!=='uploading'){it.mode=$('mode').value;it.ui.sel.value=it.mode;fit(it);}});};
+/* best-fit crop shape: the preset whose ratio is closest to the image's own ratio */
+function bestMode(w,h){
+  if(!w||!h)return'square';
+  const r=Math.log(w/h),d=k=>Math.abs(r-Math.log(R[k].w/R[k].h));
+  return['portrait','square','landscape'].reduce((a,k)=>d(k)<d(a)?k:a);
+}
+$('mode').value=store.get('imgMode','auto');
+if(!$('mode').value)$('mode').value='auto';
+$('mode').onchange=()=>{
+  const m=$('mode').value;store.set('imgMode',m);
+  items.forEach(it=>{if(it.status!=='done'&&it.status!=='uploading'){it.auto=m==='auto';it.mode=m==='auto'?bestMode(it.nw,it.nh):m;it.ui.sel.value=it.mode;fit(it);}});
+};
 
 /* copy */
 function copyBtn(label,get){
@@ -149,7 +162,8 @@ function addFiles(list){
 }
 
 function addItem(f){
-  const it={file:f,mode:$('mode').value,name:clean(f.name.replace(/\.[^.]+$/,''))||'image',status:'ready',padp:0,url:URL.createObjectURL(f)};
+  const g=$('mode').value;
+  const it={file:f,mode:g==='auto'?'square':g,auto:g==='auto',name:clean(f.name.replace(/\.[^.]+$/,''))||'image',status:'ready',padp:0,url:URL.createObjectURL(f)};
   it.card=el('div',{className:'panel'});
   items.push(it);$('queue').append(it.card);buildEditor(it);
 }
@@ -159,7 +173,7 @@ function buildEditor(it){
   const h=el('div',{className:'h'}),boxEl=el('div',{className:'box'},h);
   const stage=el('div',{className:'stage'},pic,boxEl);
   const sel=el('select',{},...[['portrait','Portrait 3:4'],['landscape','Landscape 4:3'],['square','Square 1:1'],['none','No crop']].map(([v,l])=>el('option',{value:v,textContent:l})));
-  sel.value=it.mode;sel.onchange=()=>{it.mode=sel.value;fit(it);};
+  sel.value=it.mode;sel.onchange=()=>{it.auto=false;it.mode=sel.value;fit(it);};
   const name=el('input',{type:'text',className:'grow',value:it.name,placeholder:'Name'});
   name.oninput=()=>{it.name=clean(name.value)||'image';};
   const st=el('span',{className:'mut'});
@@ -182,7 +196,11 @@ function buildEditor(it){
   it.ui={pic,boxEl,sel,st,stage,eb,size,fill,color,pick,tools,padS,ext};
   eb.onclick=()=>setErase(it,!it.erasing);
   it.card.replaceChildren(stage,el('div',{className:'row'},name,sel,eb,el('button',{textContent:'Remove',onclick:()=>{URL.revokeObjectURL(it.url);items=items.filter(x=>x!==it);it.card.remove();updateBar();}}),st),el('div',{className:'row'},'Extend edges',padS,padL,ext),tools);
-  pic.onload=()=>{it.nw=pic.naturalWidth;it.nh=pic.naturalHeight;ext.value=edgeColor(pic);fit(it);};
+  pic.onload=()=>{
+    it.nw=pic.naturalWidth;it.nh=pic.naturalHeight;ext.value=edgeColor(pic);
+    if(it.auto){it.mode=bestMode(it.nw,it.nh);sel.value=it.mode;}
+    fit(it);
+  };
   pic.src=it.url;
   let d=null;
   boxEl.addEventListener('pointerdown',e=>{e.preventDefault();boxEl.setPointerCapture(e.pointerId);d={t:e.target===h?'r':'m',sx:e.clientX,sy:e.clientY,b:{...it.box}};});
@@ -380,6 +398,13 @@ function renderHistory(){
 }
 $('hq').oninput=renderHistory;
 renderHistory();updateBar();
+
+/* back to top */
+const toTop=$('toTop');
+const syncTop=()=>{toTop.hidden=window.scrollY<400;};
+window.addEventListener('scroll',syncTop,{passive:true});
+toTop.onclick=()=>window.scrollTo({top:0,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
+syncTop();
 </script>
 </body>
 </html>
